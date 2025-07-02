@@ -1,0 +1,7 @@
+{
+  "name": "auto-updated-data",
+  "version": "1.0.0",
+  "scripts": {
+    "update": "node scripts/fetch-files.js"
+  }
+}
