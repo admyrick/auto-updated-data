@@ -6,6 +6,8 @@ const parse = require('csv-parse/lib/sync');
 
 const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTZn1rRRnweHPVsyDIcf0_U7pKZ_EyhLWQMDDPmqQDmtJ-X3UzF7e2iQlcyaaFgbVL0ydbiCdRPESXa/pub?output=csv';
 
+const downloadedFiles = [];
+
 async function downloadFile(url, folder) {
   try {
     const response = await axios.get(url, {
@@ -13,7 +15,6 @@ async function downloadFile(url, folder) {
       maxRedirects: 5,
     });
 
-    // Get filename from final URL or fallback to content-disposition
     let filename = path.basename(new URL(response.request.res.responseUrl).pathname);
     const disposition = response.headers['content-disposition'];
     if (disposition && disposition.includes('filename=')) {
@@ -28,12 +29,38 @@ async function downloadFile(url, folder) {
     response.data.pipe(writer);
 
     return new Promise((resolve, reject) => {
-      writer.on('finish', () => resolve(fullPath));
+      writer.on('finish', () => {
+        downloadedFiles.push(fullPath);
+        resolve(fullPath);
+      });
       writer.on('error', reject);
     });
   } catch (err) {
     console.error(`Failed to download ${url}:`, err.message);
   }
+}
+
+function generateIndexHtml(files) {
+  const listItems = files.map(file => {
+    const relativePath = path.relative('.', file).replace(/\\/g, '/');
+    const stats = fs.statSync(file);
+    const modified = stats.mtime.toISOString().split('T')[0];
+    return `<li><a href="${relativePath}">${relativePath}</a> — <em>${modified}</em></li>`;
+  });
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><title>Auto-Updated Files</title></head>
+<body>
+  <h1>Auto-Updated Files</h1>
+  <ul>
+    ${listItems.join('\n    ')}
+  </ul>
+</body>
+</html>`;
+
+  fs.writeFileSync('index.html', html, 'utf8');
+  console.log('✅ index.html generated.');
 }
 
 async function run() {
@@ -49,6 +76,8 @@ async function run() {
       await downloadFile(url, output);
     }
   }
+
+  generateIndexHtml(downloadedFiles);
 }
 
 run();
